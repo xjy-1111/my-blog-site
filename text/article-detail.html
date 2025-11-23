@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>文章详情 - 我的博客</title>
+    <style>
+        /* 内嵌样式 */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        body { background-color: #f8f9fa; color: #333; line-height: 1.6; }
+        .navbar {
+            background-color: #2c3e50;
+            padding: 1rem 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .navbar a { color: white; text-decoration: none; margin: 0 1rem; font-weight: 500; }
+        .navbar a:hover { color: #3498db; }
+        .navbar .logo { font-size: 1.5rem; font-weight: bold; }
+        .container { max-width: 1000px; margin: 2rem auto; padding: 0 2rem; }
+        .card {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+        }
+        .article-detail h1 { color: #2c3e50; margin-bottom: 1rem; }
+        .article-detail .meta { color: #7f8c8d; margin-bottom: 2rem; }
+        .article-detail .content { line-height: 1.8; font-size: 1.1rem; }
+        .comments-section { margin-top: 3rem; }
+        .comment { border-top: 1px solid #eee; padding: 1rem 0; }
+        .comment .author { font-weight: bold; }
+        .btn-secondary {
+            background-color: #2ecc71;
+            color: white;
+            border: none;
+            padding: 0.7rem 1.5rem;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .btn-secondary:hover { background-color: #27ae60; }
+        textarea {
+            width: 100%;
+            padding: 0.8rem;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            min-height: 100px;
+            margin: 1rem 0;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar">
+        <div class="logo">我的博客</div>
+        <div>
+            <a href="index.html">首页</a>
+            <a href="publish.html">发布文章</a>
+        </div>
+    </nav>
+
+    <div class="container">
+        <div class="card article-detail" id="article-detail"></div>
+        
+        <div class="comments-section">
+            <h2>评论区</h2>
+            <div id="comments-list"></div>
+            
+            <div class="card" style="margin-top: 1rem;">
+                <h3>发表评论</h3>
+                <textarea id="comment-content" placeholder="写下你的评论..."></textarea>
+                <button class="btn-secondary" onclick="submitComment()">提交评论</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.38.4/dist/umd/supabase.min.js"></script>
+    <script>
+        // 1. 初始化SupabaseClient
+        const supabaseClient = supabase.createClient(
+            'https://vqqhbksfbxomhjxbpion.supabase.co',
+            'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZxcWhia3NmYnhvbWhqeGJwaW9uIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2MzEwMzI4MSwiZXhwIjoyMDc4Njc5MjgxfQ.DMHymO8Wguf6xswehfkbBfWunelHhDPBebR8SehpTxY',
+            {
+                auth: {
+                    storage: false,
+                    autoRefreshToken: false,
+                    persistSession: false,
+                    detectSessionInUrl: false
+                }
+            }
+        );
+
+        // 获取文章ID
+        const urlParams = new URLSearchParams(window.location.search);
+        const articleId = urlParams.get('id');
+
+        // 获取文章详情
+        async function fetchArticleDetail() {
+            const articleDetail = document.getElementById('article-detail');
+            
+            try {
+                const { data: article, error } = await supabaseClient
+                    .from('articles')
+                    .select('*')
+                    .eq('id', articleId)
+                    .single();
+
+                if (error) throw error;
+
+                articleDetail.innerHTML = `
+                    <h1>${article.title}</h1>
+                    <div class="meta">发布于 ${new Date(article.created_at).toLocaleString()}</div>
+                    <div class="content">${article.content.replace(/\n/g, '<br>')}</div>
+                `;
+
+            } catch (err) {
+                articleDetail.innerHTML = `<p style="color: red;">文章加载失败：${err.message}</p>`;
+            }
+        }
+
+        // 获取评论
+        async function fetchComments() {
+            const commentsList = document.getElementById('comments-list');
+            
+            try {
+                const { data: comments, error } = await supabaseClient
+                    .from('comments')
+                    .select('*')
+                    .eq('article_id', articleId)
+                    .order('created_at', { ascending: true });
+
+                if (error) throw error;
+
+                if (!comments.length) {
+                    commentsList.innerHTML = '<div class="comment">暂无评论，快来抢沙发！</div>';
+                    return;
+                }
+
+                commentsList.innerHTML = comments.map(comment => `
+                    <div class="comment">
+                        <div class="author">匿名用户</div>
+                        <div>${comment.content.replace(/\n/g, '<br>')}</div>
+                        <div class="meta">${new Date(comment.created_at).toLocaleString()}</div>
+                    </div>
+                `).join('');
+
+            } catch (err) {
+                commentsList.innerHTML = `<div class="comment" style="color: red;">加载评论失败：${err.message}</div>`;
+            }
+        }
+
+        // 提交评论
+        async function submitComment() {
+            const content = document.getElementById('comment-content').value.trim();
+            if (!content) {
+                alert('评论内容不能为空！');
+                return;
+            }
+
+            try {
+                const { error } = await supabaseClient
+                    .from('comments')
+                    .insert({
+                        article_id: articleId,
+                        user_id: '00000000-0000-0000-0000-000000000000',
+                        content: content
+                    });
+
+                if (error) throw error;
+
+                alert('评论提交成功！');
+                document.getElementById('comment-content').value = '';
+                fetchComments();
+
+            } catch (err) {
+                alert('提交失败：' + err.message);
+            }
+        }
+
+        // 页面加载执行
+        window.onload = () => {
+            if (articleId) {
+                fetchArticleDetail();
+                fetchComments();
+            } else {
+                document.getElementById('article-detail').innerHTML = '<p style="color: red;">无效的文章ID</p>';
+            }
+        };
+    </script>
+</body>
+</html>
